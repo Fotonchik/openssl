@@ -1,35 +1,27 @@
-name: Trivy Scan
+name: Trivy Secret Scan
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
-
-  scan:
+  trivy-scan:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Run Trivy scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        security-checks: 'vuln,secret'
-        exit-code: '1'
-        ignore-unfixed: true
-        format: 'table'
-        output: '.github/workflows/trivy-results.txt'
-        
-    - name: Check for secrets
-      run: |
-        if grep -q 'Found' trivy-results.txt; then
-          echo "Secrets found in the repository!"
-          exit 1
-        else
-          echo "No secrets found."
-        fi
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Scan source code for secrets
+        run: trivy fs --scanners secret --exit-code 1 .
